@@ -7,13 +7,13 @@ module AssistedWorkflow
     GLOBAL_CONFIG = File.expand_path(".awconfig", ENV["HOME"])
     LOCAL_CONFIG = ".awconfig"
     source_root(File.expand_path(File.join(__FILE__, "..", "templates")))
-  
+
     # tasks shortcuts
     map ["-v", "--version"] => :version
     map "s" => :start
     map "u" => :submit
     map "f" => :finish
-  
+
     desc "setup", "Setup initial configuration in current project directory"
     def setup
       copy_file "awconfig.global.tt", GLOBAL_CONFIG
@@ -32,7 +32,7 @@ module AssistedWorkflow
         c << "$ aw config pivotal.project_id=00001"
       end
     end
-  
+
     desc "start [STORY_ID]", "Start the pivotal story and create a new branch to receive the changes"
     method_option :all, :type => :boolean, :default => false, :aliases => "-a", :desc => "Show started and pending stories when no story_id is provided"
     method_option :estimate, :type => :numeric, :aliases => "-e", :desc => "Sets the story estimate when starting"
@@ -50,20 +50,29 @@ module AssistedWorkflow
         out.next_command "after commiting your changes, submit a pull request using:", "$ aw submit"
       end
     end
-  
+
     desc "submit", "Submits the current story creating a new pull request"
+    method_option :force, :type => :boolean, :default => false, :aliases => "-f", :desc => "Create the pull request regardless of the current having an associated task or not"
     def submit
       check_awfile!
       story_id = git.current_story_id
+
       unless story = tracker.find_story(story_id)
-        raise AssistedWorkflow::Error, "story not found, make sure a feature branch in active"
+        unless options[:force]
+          raise AssistedWorkflow::Error, "story not found, make sure a feature branch is active or use --force to ignore it altogether"
+        end
       end
+
       git.rebase_and_push
-      pr_url = github.create_pull_request(git.current_branch, story)
-      tracker.finish_story(story, :note => pr_url)
+      pr_story = story || OpenStruct.new(name: git.current_feature_name)
+      pr_url = github.create_pull_request(git.current_branch, pr_story)
+
+      if story
+        tracker.finish_story(story, :note => pr_url)
+      end
       out.next_command "after pull request approval, remove the feature branch using:", "$ aw finish"
     end
-  
+
     desc "finish", "Check if the changes are merged into master, removing the current feature branch"
     def finish
       check_awfile!
@@ -74,12 +83,12 @@ module AssistedWorkflow
       git.remove_branch
       out.next_command "well done! check your next stories using:", "$ aw start"
     end
-  
+
     desc "version", "Display assisted_workflow gem version"
     def version
       say AssistedWorkflow::VERSION
     end
-  
+
     desc "config group.key=value", "Set configuration keys in local config file"
     method_option :global, :type => :boolean, :aliases => "-g", :desc => "Set configuration key in global configuration file (for all projects)"
     def config(*args)
@@ -89,36 +98,36 @@ module AssistedWorkflow
         config_file.parse(args).save!
       end
     end
-  
+
     desc "thanks", "Aw, Thanks!", :hide => true
     def thanks
       out.say "you're welcome!", :on_magenta
     end
-  
-  
+
+
     no_tasks do
       def out
         @out ||= Output.new(self.shell)
       end
-      
+
       def tracker
         @tracker ||= Addons.load_tracker(out, configuration) || github
       end
-      
+
       def git
         @git ||= Addons::Git.new(out)
       end
-    
+
       def github
-        @github ||= Addons::Github.new(out, 
+        @github ||= Addons::Github.new(out,
           {"repository" => git.repository}.merge(configuration[:github])
         )
       end
-    
+
       def config_file
         @config_file ||= ConfigFile.new(awfile)
       end
-    
+
       # loads all configuration, merging global and local values
       def configuration
         @configuration ||= begin
@@ -128,7 +137,7 @@ module AssistedWorkflow
         end
       end
     end
-  
+
     class << self
       def start(given_args=ARGV, config={})
         super
@@ -137,9 +146,9 @@ module AssistedWorkflow
         exit(1)
       end
     end
-  
+
     private ##################################################################
-  
+
       def check_awfile!
         raise AssistedWorkflow::Error, "#{awfile} does not exist.\nmake sure you run `$ aw setup` in your project folder." unless File.exist?(awfile)
       end

@@ -66,7 +66,7 @@ module AssistedWorkflow::Addons
       pull_request = if story.is_a? GithubStory
         @client.create_pull_request_for_issue(@repo, base, branch, story.id)
       else
-        title = "[##{story.id}] #{story.name}"
+        title = story.id ? "[##{story.id}] #{story.name}" : story.name
         @client.create_pull_request(@repo, base, branch, title, story.description)
       end
 
