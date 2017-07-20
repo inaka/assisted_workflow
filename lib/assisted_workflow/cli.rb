@@ -54,6 +54,7 @@ module AssistedWorkflow
     desc "submit", "Submits the current story creating a new pull request"
     def submit
       check_awfile!
+      integrate!
       story_id = git.current_story_id
       unless story = tracker.find_story(story_id)
         raise AssistedWorkflow::Error, "story not found, make sure a feature branch in active"
@@ -62,6 +63,13 @@ module AssistedWorkflow
       pr_url = github.create_pull_request(git.current_branch, story)
       tracker.finish_story(story, :note => pr_url)
       out.next_command "after pull request approval, remove the feature branch using:", "$ aw finish"
+    end
+
+    desc "integrate", "Run integration command before submiting a pull request"
+    def integrate
+      check_awfile!
+      raise AssistedWorkflow::Error, "`integration` missing configuration" unless configuration[:integration]
+      integrate!
     end
   
     desc "finish", "Check if the changes are merged into master, removing the current feature branch"
@@ -139,9 +147,16 @@ module AssistedWorkflow
     end
   
     private ##################################################################
-  
+
       def check_awfile!
         raise AssistedWorkflow::Error, "#{awfile} does not exist.\nmake sure you run `$ aw setup` in your project folder." unless File.exist?(awfile)
+      end
+
+      def integrate!
+        if configuration[:integration]
+          system(configuration[:integration])
+          raise AssistedWorkflow::Error, "Integration step failed" if $? != 0
+        end
       end
 
       def awfile

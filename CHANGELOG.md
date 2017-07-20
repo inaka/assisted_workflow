@@ -5,12 +5,13 @@
 * enchancements
   * Moving from pivotal-tracker to tracker-api gem, in order to use api v5 (@alemata)
   * Packaging with Traveling Ruby (@flaviogranero)
+  * Updating dependencies versions
 
 ### 0.3.1
 
 * bug fix
-  * Fixing issue when states/transitions are the default ones
-  * Bugfix for issues with empty descriptions
+  * Fixing a `jira` issue when states/transitions are the default
+  * Fixing a `jira` issue when task description is empty
 
 ### 0.3.0
 
